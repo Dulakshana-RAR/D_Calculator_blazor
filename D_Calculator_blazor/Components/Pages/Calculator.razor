@@ -1,0 +1,156 @@
+﻿@page "/calculator"
+@rendermode InteractiveServer
+@using NCalc;
+@using System.IO;
+
+<h3>Simple Calculator</h3>
+<div class="main-container">
+    <div class="calculator-container">
+        <input type="text" @bind="display" @onkeydown="HandleKeyDown" class="display" />
+        <div class="button-grid">
+            <button @onclick="() => AddToDisplay('(')">(</button>
+            <button @onclick="() => AddToDisplay(')')">)</button>
+            <button @onclick="ClearDisplay">AC</button>
+            <button @onclick="() => AddToDisplay('÷')">÷</button>
+
+            <button @onclick="() => AddToDisplay('7')">7</button>
+            <button @onclick="() => AddToDisplay('8')">8</button>
+            <button @onclick="() => AddToDisplay('9')">9</button>
+            <button @onclick="() => AddToDisplay('×')">×</button>
+
+            <button @onclick="() => AddToDisplay('4')">4</button>
+            <button @onclick="() => AddToDisplay('5')">5</button>
+            <button @onclick="() => AddToDisplay('6')">6</button>
+            <button @onclick="() => AddToDisplay('-')">-</button>
+
+            <button @onclick="() => AddToDisplay('1')">1</button>
+            <button @onclick="() => AddToDisplay('2')">2</button>
+            <button @onclick="() => AddToDisplay('3')">3</button>
+            <button @onclick="() => AddToDisplay('+')">+</button>
+
+            <button @onclick="() => AddToDisplay('0')">0</button>
+            <button @onclick="() => AddToDisplay('.')">.</button>
+            <button @onclick="Calculate" class="equals">▶</button>
+            <button @onclick="() => AddToDisplay('+')">+</button>
+        </div>
+    </div>
+    <div class="history-container">
+        <div class="history-header">
+            <h4>Calculation History</h4>
+            <button @onclick="ClearHistory" class="clear-history-btn">Clear History</button>
+        </div>
+        <div class="history-list">
+            @foreach (var entry in history)
+            {
+                <p @onclick="() => ReuseExpression(entry)" class="history-entry">@entry</p>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private string display = "";
+    private double result;
+    private List<string> history = new List<string>();
+
+    protected override void OnInitialized()
+    {
+        LoadHistory();
+    }
+
+    private void AddToDisplay(char value)
+    {
+        display += value;
+    }
+
+    private void ClearDisplay()
+    {
+        display = "";
+        result = 0;
+    }
+
+    private void Calculate()
+    {
+        try
+        {
+            // Replace × and ÷ with * and / for calculation
+            string expression = display.Replace("×", "*").Replace("÷", "/");
+
+            var expressionEngine = new NCalc.Expression(expression);
+            result = Convert.ToDouble(expressionEngine.Evaluate());
+            display = result.ToString("0.####");
+
+            string logEntry = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} |  {expression} = {display}\n";
+            File.AppendAllText("calculation_history.txt", logEntry);
+
+            LoadHistory();
+        }
+        catch
+        {
+            display = "Error";
+        }
+    }
+
+    private void LoadHistory()
+    {
+        try
+        {
+            if (File.Exists("calculation_history.txt"))
+            {
+                history = File.ReadAllLines("calculation_history.txt").ToList();
+            }
+            else
+            {
+                history = new List<string>();
+            }
+            // Notify Blazor to re-render the component
+            StateHasChanged();
+        }
+        catch
+        {
+            history = new List<string> { "Error loading history" };
+        }
+    }
+
+    private void ClearHistory()
+    {
+        try
+        {
+            File.WriteAllText("calculation_history.txt", string.Empty);
+            LoadHistory();
+        }
+        catch
+        {
+            history = new List<string> { "Error clearing history" };
+            StateHasChanged();
+        }
+    }
+
+    private void ReuseExpression(string entry)
+    {
+        // Format: "2025-05-21 17:37:00 | 3 + 5 = 8"
+        var parts = entry.Split('|');
+        if (parts.Length > 1)
+        {
+            var expressionPart = parts[1].Trim(); // "3 + 5 = 8"
+            var expression = expressionPart.Split('=')[0].Trim(); // "3 + 5"
+            display = expression.Replace("*", "×").Replace("/", "÷"); // Restore display symbols
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            Calculate();
+        }
+        else if (args.Key == "Escape")
+        {
+            ClearDisplay();
+        }
+        // Optionally, you can add more key handling (e.g., numbers, operators)
+        // For now, users can type directly into the input due to @bind
+    }
+
+}
